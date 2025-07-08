@@ -1,0 +1,22 @@
+version: "3.7"
+
+services:
+  
+  jellyfin:
+    image: linuxserver/jellyfin
+    restart: unless-stopped
+    #hostname: "${DEVICE_HOSTNAME}"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - ./config:/config
+      - ../media:/media
+#      - /media/umbrl/GPass_Serie:/hard_Drive
+#      - /media/umbrl/Videos:/hdd_movie_all
+    ports:
+      # Service auto-discovery
+      - 7359:7359/udp
+      - 8096:8096
+

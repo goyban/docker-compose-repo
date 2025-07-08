@@ -1,0 +1,12 @@
+# Ignore all contents of the folder
+
+openwebui/*
+!openwebui/docker-compose.yaml
+
+overleaf/*
+!overleaf/docker-compose.yaml
+
+owui-ollama/*
+!owui-ollama/docker-compose.yaml
+
+
