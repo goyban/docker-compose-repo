@@ -1,0 +1,27 @@
+# Paste your real compose file here, then adjust:
+#   - drop any `version:` key (obsolete in Compose v2)
+#   - replace hardcoded host paths with ${DATA_PATH}
+#   - remove `volumes:` blocks nothing references
+#   - publish the port; leave TLS and auth to the reverse proxy
+#   - give shared settings a default: ${PUID:-1000}, not ${PUID}
+#   - make host-specific values fail loudly: ${VAR:?how to find it}
+#     (a bare ${VAR} that isn't set becomes an empty string and starts anyway)
+
+services:
+  <service>:
+    image: <image>
+    container_name: <service>
+    restart: unless-stopped
+
+    # Same on every host, so they're defaulted here. A service .env overrides
+    # them, and a global `export PUID=...` in your shell overrides that.
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+
+    volumes:
+      - ${DATA_PATH:-./data}/config:/config
+
+    ports:
+      - "${PORT:-8080}:8080"

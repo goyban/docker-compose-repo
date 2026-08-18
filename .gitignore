@@ -1,12 +1,21 @@
-# Ignore all contents of the folder
+# ─── Deny by default ────────────────────────────────────────────────
+# Everything inside a service directory is ignored. This means a new
+# service is safe automatically — you don't have to remember to add a
+# rule for it before the first `docker compose up`.
+*/*
 
-openwebui/*
-!openwebui/docker-compose.yaml
+# ─── …except the files that define a stack ──────────────────────────
+!*/compose.yaml
+!*/docker-compose.yaml
+!*/.env.example
+!*/README.md
 
-overleaf/*
-!overleaf/docker-compose.yaml
+# Docs are not service data.
+!docs/**
 
-owui-ollama/*
-!owui-ollama/docker-compose.yaml
-
-
+# ─── Never, anywhere ────────────────────────────────────────────────
+.env
+*.key
+*.pem
+*.crt
+secrets/

@@ -1,0 +1,44 @@
+services:
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+
+    # Defaults make a fresh clone work with no .env at all. Anything you set
+    # -- in this service's .env, or exported globally in your shell -- wins.
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      # The address Jellyfin advertises to clients during auto-discovery. Worth
+      # setting behind a reverse proxy, where clients otherwise get handed the
+      # container's internal address and fail to connect.
+      #- JELLYFIN_PublishedServerUrl=https://jellyfin.example.com
+
+    volumes:
+      # Jellyfin's own state. Stays next to this file on purpose — see README.
+      - ${CONFIG_PATH:-./config}:/config
+      - "${MEDIA_PATH:?set MEDIA_PATH in .env to your media library}:/media"
+      # Extra libraries on other disks. One line per library; the path after
+      # the colon is what you browse to when adding the library in the UI.
+      #- ${MEDIA_PATH_2}:/media2
+      #- ${MEDIA_PATH_3}:/media3
+
+    ports:
+      - "${PORT:-8096}:8096"
+      # LAN client auto-discovery. Drop it if you always reach Jellyfin by
+      # name or through a reverse proxy.
+      - "${DISCOVERY_PORT:-7359}:7359/udp"
+      # Jellyfin's own HTTPS listener. Off here: TLS terminates at the proxy.
+      #- "8920:8920"
+      # DLNA / SSDP. Only for devices that discover servers that way.
+      #- "1900:1900/udp"
+
+    # ─── Hardware transcoding: Intel Quick Sync / VAAPI ──────────────────
+    # Delete both keys below if you transcode on the CPU, or replace them
+    # with the NVIDIA/AMD equivalent. RENDER_GID is host-specific — the
+    # .env.example explains how to find yours.
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    group_add:
+      - "${RENDER_GID:?find yours with: getent group render | cut -d: -f3}"
