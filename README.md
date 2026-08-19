@@ -36,6 +36,7 @@ handled separately — see [Exposing services](#exposing-services).
 
 | Service | Port | Notes |
 |---------|------|-------|
+| [cloudflare-tunnel](cloudflare-tunnel/) | — | Outbound connector. Exposes other services without opening a port |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
 | [openwebui](openwebui/) | 3033 | LLM chat UI, talks to an external model backend |
 | [owui-ollama](owui-ollama/) | 3034 | Open WebUI bundled with Ollama |

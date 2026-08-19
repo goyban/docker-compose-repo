@@ -33,15 +33,19 @@ TODO: your preferred flow — dashboard-created tunnel vs. `cloudflared tunnel
 create`. The dashboard route is easier to show on video; the CLI route is
 easier to keep in version control.
 
+The connector itself is a service in this repo — see
+[`cloudflare-tunnel/`](../cloudflare-tunnel/) for the compose file, the token
+setup and the gotchas. In short:
+
 ```yaml
 services:
-  cloudflared:
+  cloudflaretunnel:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared
+    container_name: cloudflare-tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?}
 ```
 
 The tunnel token is a **real secret** — it grants the ability to route

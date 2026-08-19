@@ -1,0 +1,21 @@
+services:
+  cloudflaretunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+
+    environment:
+      # Only affects log timestamps here — nothing is written to disk.
+      - TZ=${TZ:-Etc/UTC}
+      # A real secret: it grants the ability to route traffic into your network.
+      # Dashboard -> Zero Trust -> Networks -> Tunnels -> (tunnel) -> Configure
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?get it from Cloudflare Zero Trust > Networks > Tunnels > Configure}
+
+    # No `ports:` and no PUID/PGID on purpose — see the README.
+
+    # Lets dashboard routes reach services published on the Docker host, e.g.
+    #   gitea.example.com -> http://host.docker.internal:3000
+    # Drop this if you route to containers by name on a shared network.
+    extra_hosts:
+      - host.docker.internal:host-gateway
