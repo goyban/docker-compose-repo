@@ -1,0 +1,23 @@
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    restart: unless-stopped
+
+    # NOT a LinuxServer image: no s6, no init script -- tini execs straight
+    # into node, as root. PUID/PGID would be silently ignored, so ownership is
+    # set with Docker's own `user:` instead. See the README.
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+
+    volumes:
+      - ${CONFIG_PATH:-./config}:/config
+      - ${METADATA_PATH:-./metadata}:/metadata
+      - "${MEDIA_PATH:?set MEDIA_PATH in .env to the parent of your Audiobooks/Podcasts folders}/Audiobooks:/audiobooks"
+      - ${MEDIA_PATH}/Podcasts:/podcasts
+
+    ports:
+      # 13378 is the conventional host port; the container always listens on 80.
+      - "${PORT:-13378}:80"
