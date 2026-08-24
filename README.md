@@ -39,8 +39,7 @@ handled separately — see [Exposing services](#exposing-services).
 | [audiobookshelf](audiobookshelf/) | 13378 | Audiobooks and podcasts, with per-user progress sync |
 | [cloudflare-tunnel](cloudflare-tunnel/) | — | Outbound connector. Exposes other services without opening a port |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
-| [openwebui](openwebui/) | 3033 | LLM chat UI, talks to an external model backend |
-| [owui-ollama](owui-ollama/) | 3034 | Open WebUI bundled with Ollama |
+| [openwebui](openwebui/) | 3033 | LLM chat UI. One `OWUI_TAG` switches between CPU, CUDA and bundled-Ollama |
 | [overleaf](overleaf/) | 8020 | LaTeX editor. Needs Mongo + Redis |
 
 <!-- One row per service. Add as you go — the table is the index people scan. -->

@@ -1,0 +1,41 @@
+services:
+  open-webui:
+    # The TAG decides what is inside the image — full comparison in README.md.
+    #   main / latest   WebUI only, CPU. Models live elsewhere.   (default)
+    #   cuda            + CUDA runtime for RAG embeddings and STT
+    #   ollama          + Ollama bundled in the same container
+    #   v0.11.0         a frozen release; main/latest are rolling
+    image: ghcr.io/open-webui/open-webui:${OWUI_TAG:-main}
+    container_name: open-webui
+    restart: unless-stopped
+
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+      # Where the models are. Leave commented to pick it in the UI instead.
+      #   Ollama on the Docker host    -> http://host.docker.internal:11434
+      #   Ollama in another container   -> http://ollama:11434
+      #   Ollama on a Mac / another box -> http://<its-ip>:11434
+      #   OWUI_TAG=ollama (bundled)     -> leave unset, it is already local
+      #- OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      # Session signing key. Generated into the data dir when unset — set it
+      # explicitly if you ever move the data to another host.
+      #- WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
+
+    volumes:
+      - ${DATA_PATH:-./open-webui}:/app/backend/data
+      # ONLY with OWUI_TAG=ollama — where pulled models are stored. Expect tens
+      # of GB. Leave commented for every other tag.
+      #- ${OLLAMA_PATH:-./ollama}:/root/.ollama
+
+    ports:
+      - "${PORT:-3033}:8080"
+
+    # Lets the container reach an Ollama running on the Docker host.
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+    # ─── NVIDIA GPU ──────────────────────────────────────────────────────
+    # Uncomment with OWUI_TAG=cuda or OWUI_TAG=ollama on an NVIDIA host.
+    # Needs the NVIDIA Container Toolkit installed. Does nothing on Apple
+    # silicon — Docker cannot reach the GPU there at all. See the README.
+    #gpus: all
