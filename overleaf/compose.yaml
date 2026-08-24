@@ -1,0 +1,78 @@
+name: overleaf
+
+services:
+  sharelatex:
+    image: sharelatex/sharelatex:6.2.2
+    container_name: overleaf
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Overleaf needs time to finish in-flight compiles on shutdown.
+    stop_grace_period: 60s
+
+    ports:
+      - "${PORT:-8020}:80"
+
+    volumes:
+      - ${DATA_PATH:-./data}/overleaf:/var/lib/overleaf
+
+    environment:
+      OVERLEAF_APP_NAME: ${OVERLEAF_APP_NAME:-Overleaf}
+
+      # These hostnames are compose SERVICE names, not container names.
+      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
+      # One setting, two variable names. Upstream's own comment: "unfortunately".
+      OVERLEAF_REDIS_HOST: redis
+      REDIS_HOST: redis
+
+      # Required for invite tokens. openssl rand -base64 32
+      OVERLEAF_INVITE_TOKEN_SECRET: ${OVERLEAF_INVITE_TOKEN_SECRET:?generate with openssl rand -base64 32}
+
+      # Public address. Every generated link -- activation, password reset,
+      # project invite -- is built from this. Defaults to http://localhost,
+      # which is wrong the moment you use a port or a domain.
+      OVERLEAF_SITE_URL: ${OVERLEAF_SITE_URL:-http://localhost:8020}
+
+      ENABLED_LINKED_FILE_TYPES: "project_file,project_output_file"
+      ENABLE_CONVERSIONS: "true"
+      EMAIL_CONFIRMATION_DISABLED: "true"
+
+      # Serving over HTTPS? Uncomment. The value is NOT parsed -- the code
+      # tests `!= null`, so even "false" switches it ON. Comment it out to
+      # disable, never set it to false.
+      #OVERLEAF_SECURE_COOKIE: "true"
+
+      # DO NOT add SANDBOXED_COMPILES / DOCKER_RUNNER here. Upstream's sample
+      # ships them enabled, but they are Server Pro only and break compiles on
+      # Community Edition. See the README.
+
+  mongo:
+    image: mongo:8.0
+    container_name: overleaf-mongo
+    restart: unless-stopped
+    # Overleaf uses transactions, which require replica-set mode even on one node.
+    command: "--replSet overleaf"
+    volumes:
+      - ${DATA_PATH:-./data}/mongo:/data/db
+      - ./init/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: sharelatex
+    # rs.initiate() registers the member as "mongo:27017", so during init the
+    # container has to resolve that name to itself.
+    extra_hosts:
+      - mongo:127.0.0.1
+    healthcheck:
+      test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:6.2
+    container_name: overleaf-redis
+    restart: unless-stopped
+    volumes:
+      - ${DATA_PATH:-./data}/redis:/data

@@ -40,7 +40,7 @@ handled separately — see [Exposing services](#exposing-services).
 | [cloudflare-tunnel](cloudflare-tunnel/) | — | Outbound connector. Exposes other services without opening a port |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
 | [openwebui](openwebui/) | 3033 | LLM chat UI. One `OWUI_TAG` switches between CPU, CUDA and bundled-Ollama |
-| [overleaf](overleaf/) | 8020 | LaTeX editor. Needs Mongo + Redis |
+| [overleaf](overleaf/) | 8020 | LaTeX editor. Four containers: app, Mongo (replica set), Redis, init |
 
 <!-- One row per service. Add as you go — the table is the index people scan. -->
 

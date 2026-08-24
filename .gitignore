@@ -10,6 +10,12 @@
 !*/.env.example
 !*/README.md
 
+# Support files a stack needs at runtime: init scripts, config fragments.
+# Keep them in a per-service `init/` directory so they are never mistaken for
+# application state.
+!*/init/
+!*/init/**
+
 # Docs are not service data.
 !docs/**
 

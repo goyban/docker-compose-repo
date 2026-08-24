@@ -1,0 +1,190 @@
+# Overleaf
+
+Self-hosted LaTeX editor — the Community Edition of overleaf.com. Real-time
+collaborative editing, compiles server-side, keeps a full TeX Live install so
+you don't maintain one locally.
+
+## Quick start
+
+```bash
+cp .env.example .env
+echo "OVERLEAF_INVITE_TOKEN_SECRET=$(openssl rand -base64 32)" >> .env
+$EDITOR .env            # set OVERLEAF_SITE_URL
+docker compose up -d
+```
+
+First boot takes a minute or two. Then create the first admin account — there
+is no signup form until a user exists:
+
+```bash
+docker compose exec sharelatex bash -c \
+  'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --admin --email=you@example.com'
+```
+
+It prints an activation URL. Open it, set a password, done.
+
+## Ports
+
+| Port | Proto | Purpose |
+|------|-------|---------|
+| 8020 | http | Web UI (container listens on 80) |
+
+Mongo and Redis are reachable only on the internal compose network.
+
+## Why it looks like this
+
+**Four containers, not one.** The app, MongoDB, Redis, and a one-shot replica-set
+initializer. Overleaf is a small distributed system pretending to be an app.
+
+**Mongo runs as a replica set** (`--replSet overleaf`) even though there's one
+node. Overleaf uses transactions and change streams, which Mongo only provides
+in replica-set mode. Something has to call `rs.initiate()` exactly once, which
+is what [`init/mongodb-init-replica-set.js`](init/mongodb-init-replica-set.js)
+does — Mongo runs anything in `/docker-entrypoint-initdb.d/` on first start
+against an empty data directory. Skip this and Overleaf hangs at boot with
+errors that don't mention replica sets.
+
+`extra_hosts: mongo:127.0.0.1` is part of the same trick: the init script
+registers the member as `mongo:27017`, so during initialization the container
+has to resolve its own service name.
+
+**No `SANDBOXED_COMPILES`.** Upstream's sample `docker-compose.yml` ships these
+*enabled*:
+
+```yaml
+SANDBOXED_COMPILES: "true"
+DOCKER_RUNNER: "true"
+SANDBOXED_COMPILES_SIBLING_CONTAINERS: "true"
+```
+
+Directly above them, its own comment says sandboxed compiles are Server Pro
+only and "must be commented out to avoid compile issues" on Community Edition.
+Copy that file as-is and your documents don't compile. They're absent here on
+purpose.
+
+**The image is pinned to `6.2.2`.** Upstream's sample is unpinned. This is a
+database-backed service with schema migrations between majors — an unattended
+`docker compose pull` picking up a new major is not something you want to
+discover on a Sunday.
+
+**`container_name: overleaf-mongo` / `overleaf-redis`**, while the *service*
+names stay `mongo` and `redis`. The service names are load-bearing —
+`OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex` resolves them — but upstream's
+`container_name: mongo` would claim a very generic name on the host and collide
+with the next stack that wants it.
+
+**`stop_grace_period: 60s`** so in-flight compiles finish instead of being
+killed mid-run.
+
+## Behind your own domain
+
+Set the public URL — this is the setting people miss:
+
+```bash
+# .env
+OVERLEAF_SITE_URL=https://overleaf.example.com
+```
+
+Then uncomment `OVERLEAF_SECURE_COOKIE` in `compose.yaml`.
+
+Caddy, which handles WebSockets automatically (Overleaf needs them for
+collaborative editing and the compile log):
+
+```caddy
+overleaf.example.com {
+    reverse_proxy 192.168.1.50:8020
+}
+```
+
+That's the whole config — Caddy gets the certificate itself. See
+[reverse proxy](../docs/reverse-proxy.md).
+
+A [Cloudflare Tunnel](../cloudflare-tunnel/) also works and passes WebSockets,
+but mind the ~100 MB upload cap if you bring in large figures or datasets.
+
+**Order matters:** change `OVERLEAF_SITE_URL` *before* creating accounts, or the
+activation links you've already sent point at the wrong host.
+
+## Running it on OpenMediaVault
+
+Two things differ from a plain `docker compose up`, and both cost me an evening.
+
+**Copy `init/mongodb-init-replica-set.js` across before the first start.** OMV's
+compose plugin deploys the compose file and the env file, not the rest of the
+directory. If that script isn't on disk when Mongo first starts, Docker creates
+it as an empty *directory* — bind mounts do that for missing paths — Mongo skips
+it, and the replica set is never initialized.
+
+The symptom points nowhere near the cause: Mongo reports **healthy** while the
+app restart-loops with `500_check_db_access.sh failed with status 1`. Mongo's
+healthcheck only runs `db.stats().ok`, which succeeds fine without a replica set.
+
+If you've already started it, fix it in place — the entrypoint won't re-run once
+the data directory has data:
+
+```bash
+docker exec overleaf-mongo mongosh --quiet --eval \
+  'rs.initiate({_id:"overleaf",members:[{_id:0,host:"mongo:27017"}]})'
+docker restart overleaf
+```
+
+**Use `docker exec`, not `docker compose`, for one-off commands.** OMV names the
+env file `<stack>.env`, and Compose only auto-loads a file called `.env`. So a
+manual compose command fails on the required variables even though the running
+stack is perfectly configured:
+
+```
+required variable OVERLEAF_INVITE_TOKEN_SECRET is missing a value
+```
+
+The container already has the environment, so talk to it directly:
+
+```bash
+docker exec overleaf bash -c \
+  'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --admin --email=you@example.com'
+```
+
+If you'd rather have compose work by hand too, symlink it once — OMV keeps
+passing its own `--env-file` and won't notice:
+
+```bash
+ln -s overleaf.env .env
+```
+
+## Gotchas
+
+- **`OVERLEAF_SECURE_COOKIE` is tested with `!= null`.** Setting it to `"false"`
+  turns secure cookies **on**. The only way to disable it is to leave it unset —
+  and with it wrongly on over plain HTTP, login silently fails to stick.
+- **Mongo 8.0 needs AVX.** Mongo 5.0+ won't start on CPUs without it, and the
+  failure is an immediate exit with nothing useful logged. Check first:
+  `grep -o avx2 /proc/cpuinfo | head -1`
+- **A healthy Mongo does not mean the replica set is up.** The healthcheck runs
+  `db.stats().ok`, which passes without one — so `depends_on: service_healthy`
+  is satisfied and the app starts anyway, then fails its own DB check.
+- **The replica-set script only runs on an empty data directory.** If Mongo has
+  data but no replica set, initialize by hand:
+  `docker compose exec mongo mongosh --eval 'rs.initiate({_id:"overleaf",members:[{_id:0,host:"mongo:27017"}]})'`
+- **No signup page until the first user exists.** Use the `create-user.mjs`
+  script above; the web UI won't offer to make one.
+- **Back up `DATA_PATH`.** `data/mongo` holds every project. `data/overleaf`
+  holds uploaded files and compile output.
+- **Upgrading across majors** may need migrations, and Mongo itself can't jump
+  several versions at once. Read the release notes rather than pulling blind.
+
+## Health checks
+
+The image ships its own:
+
+```bash
+docker compose exec sharelatex bash -c 'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/check-mongodb.mjs'
+docker compose exec sharelatex bash -c 'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/check-redis.mjs'
+docker compose exec mongo mongosh --quiet --eval 'rs.status().members.map(m => m.name + " " + m.stateStr)'
+```
+
+## Links
+
+- Upstream repo: <https://github.com/overleaf/overleaf>
+- Their sample compose: <https://github.com/overleaf/overleaf/blob/main/docker-compose.yml>
+- The Toolkit (upstream's recommended installer): <https://github.com/overleaf/toolkit>
+- Image: <https://hub.docker.com/r/sharelatex/sharelatex>
