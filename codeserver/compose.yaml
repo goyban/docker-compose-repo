@@ -1,0 +1,44 @@
+services:
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+
+      # REQUIRED. With neither PASSWORD nor HASHED_PASSWORD set, code-server
+      # starts with NO authentication -- an editor and a shell, open to anyone
+      # who can reach the port.
+      - PASSWORD=${PASSWORD:?set one - without it code-server has no auth at all}
+
+      # Overrides PASSWORD when set. Use it to keep the plaintext out of .env.
+      #- HASHED_PASSWORD=${HASHED_PASSWORD}
+
+      # Enables `sudo` in the built-in terminal -- needed to apt-install
+      # anything, since the image ships no python/pip/compilers. Empty is safe
+      # and simply leaves sudo disabled: the init script tests `-n`, so an
+      # empty value is not the same as an enabled blank password.
+      - SUDO_PASSWORD=${SUDO_PASSWORD:-}
+      # Takes priority over SUDO_PASSWORD if you'd rather store only a hash.
+      #- SUDO_PASSWORD_HASH=${SUDO_PASSWORD_HASH}
+
+      # Only needed if you serve forwarded ports on subdomains, so that
+      # port 3000 becomes 3000.code.example.com. Requires a wildcard DNS
+      # record and a wildcard certificate.
+      #- PROXY_DOMAIN=${PROXY_DOMAIN}
+
+      - DEFAULT_WORKSPACE=${DEFAULT_WORKSPACE:-/config/workspace}
+      #- PWA_APPNAME=${PWA_APPNAME:-code-server}
+
+    volumes:
+      # Settings, extensions, and the default workspace. Back this up.
+      - ${CONFIG_PATH:-./config}:/config
+      # Code that lives elsewhere on the host. Whatever you mount here is
+      # editable -- and runnable -- from the browser.
+      #- ${PROJECTS_PATH}:/config/workspace/projects
+
+    ports:
+      - "${PORT:-8443}:8443"
