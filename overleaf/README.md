@@ -167,10 +167,63 @@ ln -s overleaf.env .env
   `docker compose exec mongo mongosh --eval 'rs.initiate({_id:"overleaf",members:[{_id:0,host:"mongo:27017"}]})'`
 - **No signup page until the first user exists.** Use the `create-user.mjs`
   script above; the web UI won't offer to make one.
+- **Missing LaTeX packages** — see the section below. The short version is
+  `tlmgr --usermode install <pkg>`, not plain `tlmgr install`.
 - **Back up `DATA_PATH`.** `data/mongo` holds every project. `data/overleaf`
   holds uploaded files and compile output.
 - **Upgrading across majors** may need migrations, and Mongo itself can't jump
   several versions at once. Read the release notes rather than pulling blind.
+
+## Installing LaTeX packages so they stay installed
+
+The image ships a reduced TeX Live, so a document can fail on a package that
+exists upstream — `booktabs` is a common first casualty. The obvious fix works
+and then quietly undoes itself:
+
+```bash
+docker exec overleaf tlmgr install booktabs      # works now, gone after an upgrade
+```
+
+TeX Live lives at `/usr/local/texlive/2026/`, **inside the image**. A
+`docker restart` keeps those files; recreating the container after
+`docker compose pull` does not. A document that compiled last month stops
+compiling and nothing tells you why.
+
+The fix is `TEXMFHOME`, which this stack bind-mounts to `${DATA_PATH}/texmf`.
+Install in user mode and packages land on the volume instead:
+
+```bash
+# once, to create the tree
+docker exec overleaf tlmgr init-usertree
+
+# thereafter, for each package
+docker exec overleaf tlmgr --usermode install booktabs
+```
+
+Verify it took:
+
+```bash
+docker exec overleaf kpsewhich booktabs.sty
+#   /root/texmf/tex/latex/booktabs/booktabs.sty   <- persisted
+#   /usr/local/texlive/...                        <- inside the image, will be lost
+```
+
+The path in the output tells you which mode you used.
+
+**Caveats.** User mode handles ordinary style packages cleanly. Packages that
+install fonts or need map-file updates may also want `updmap-user`, and a few
+that expect to modify the main tree won't work this way — install those with a
+custom image instead:
+
+```dockerfile
+FROM sharelatex/sharelatex:6.2.2
+RUN tlmgr install <packages>
+```
+
+That's the more reproducible option in general, since the package list ends up
+in version control. The trade is rebuilding on every upstream release. If you
+stay with user mode, keep a list of what you've installed — the volume survives,
+but a list is what lets you rebuild from nothing.
 
 ## Health checks
 

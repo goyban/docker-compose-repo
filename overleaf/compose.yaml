@@ -18,6 +18,10 @@ services:
 
     volumes:
       - ${DATA_PATH:-./data}/overleaf:/var/lib/overleaf
+      # TEXMFHOME. Packages installed with `tlmgr --usermode install` land here
+      # instead of inside the image, so they survive an image update. See the
+      # README -- without this, every upgrade silently drops them.
+      - ${DATA_PATH:-./data}/texmf:/root/texmf
 
     environment:
       OVERLEAF_APP_NAME: ${OVERLEAF_APP_NAME:-Overleaf}
