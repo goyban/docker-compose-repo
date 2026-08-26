@@ -13,15 +13,45 @@ $EDITOR .env            # set OVERLEAF_SITE_URL
 docker compose up -d
 ```
 
-First boot takes a minute or two. Then create the first admin account — there
-is no signup form until a user exists:
+First boot takes a minute or two. Then create the first admin account — see
+below, there is no signup form at all.
+
+## Adding users
+
+Community Edition has **no public registration**. `/register` exists but renders
+a page pointing at an admin rather than a form, and there's no setting to open
+it up. Accounts are created one at a time by you.
 
 ```bash
+# the first account -- make it an admin
 docker compose exec sharelatex bash -c \
   'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --admin --email=you@example.com'
+
+# everyone after that -- drop --admin
+docker compose exec sharelatex bash -c \
+  'cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --email=someone@example.com'
 ```
 
-It prints an activation URL. Open it, set a password, done.
+The command prints an activation URL:
+
+```
+http://overleaf.example.com/user/activate?token=<token>&user_id=<id>
+```
+
+**Send that link to the person yourself.** No mail is configured here, so
+Overleaf's attempt to email it goes nowhere. They open it, choose their own
+password, and they're in — there's no confirmation step, since
+`EMAIL_CONFIRMATION_DISABLED` is set.
+
+The host in that URL comes from `OVERLEAF_SITE_URL`. Get that wrong and the
+link points somewhere unreachable — it defaults to bare `http://localhost`.
+
+Once an admin exists you can do the same thing from the web UI at
+**Admin → Manage Users**, which shows the activation link on screen. Same
+result; the CLI is just faster over SSH.
+
+On OMV, use `docker exec` instead of `docker compose exec` — see
+[Running it on OpenMediaVault](#running-it-on-openmediavault).
 
 ## Ports
 
