@@ -159,6 +159,15 @@ ln -s overleaf.env .env
 - **Mongo 8.0 needs AVX.** Mongo 5.0+ won't start on CPUs without it, and the
   failure is an immediate exit with nothing useful logged. Check first:
   `grep -o avx2 /proc/cpuinfo | head -1`
+- **`start_period` on Mongo's healthcheck is load-bearing.** Without it, slow
+  checks during startup count against `retries` straight away — five of them
+  (~50s) mark Mongo unhealthy, and the app's `condition: service_healthy`
+  refuses to start it. Mongo then recovers on its next check, so by morning
+  everything looks fine except the app, which is simply down. This bites on
+  backup scripts that stop and start containers: Mongo comes back while the
+  disks are still busy, `mongosh` is a Node process and answers slowly, and the
+  stack loses a race nobody knew it was running. Upstream's sample has no
+  `start_period` either.
 - **A healthy Mongo does not mean the replica set is up.** The healthcheck runs
   `db.stats().ok`, which passes without one — so `depends_on: service_healthy`
   is satisfied and the app starts anyway, then fails its own DB check.
@@ -189,26 +198,40 @@ TeX Live lives at `/usr/local/texlive/2026/`, **inside the image**. A
 `docker compose pull` does not. A document that compiled last month stops
 compiling and nothing tells you why.
 
-The fix is `TEXMFHOME`, which this stack bind-mounts to `${DATA_PATH}/texmf`.
-Install in user mode and packages land on the volume instead:
+The fix is user-mode installs plus a `TEXMFHOME` that both users agree on.
+That second half matters more than it looks: **tlmgr runs as root, but the
+compiles run as `www-data`**, and by default those two resolve `TEXMFHOME`
+differently:
+
+```
+root      /root/texmf        <- where a plain `tlmgr --usermode install` lands
+www-data  /var/www/texmf     <- where LaTeX actually looks
+```
+
+So the install succeeds, reports no error, and the package still isn't found —
+and `/root` isn't even readable by `www-data`, so no amount of mounting that
+path helps. This stack therefore sets:
+
+```yaml
+TEXMFHOME: /var/lib/overleaf/texmf
+```
+
+which is inside the persisted volume, so both users agree and the packages
+survive image updates. Then:
 
 ```bash
-# once, to create the tree
-docker exec overleaf tlmgr init-usertree
-
-# thereafter, for each package
+docker exec overleaf tlmgr --usermode init-usertree   # once
 docker exec overleaf tlmgr --usermode install booktabs
 ```
 
-Verify it took:
+Verify as the user that actually compiles, not as root:
 
 ```bash
-docker exec overleaf kpsewhich booktabs.sty
-#   /root/texmf/tex/latex/booktabs/booktabs.sty   <- persisted
-#   /usr/local/texlive/...                        <- inside the image, will be lost
+docker exec -u www-data overleaf kpsewhich booktabs.sty
+#  /var/lib/overleaf/texmf/...   correct, persisted
+#  /usr/local/texlive/...        inside the image, lost on update
+#  nothing                       installed somewhere the compiler can't see
 ```
-
-The path in the output tells you which mode you used.
 
 **Caveats.** User mode handles ordinary style packages cleanly. Packages that
 install fonts or need map-file updates may also want `updmap-user`, and a few

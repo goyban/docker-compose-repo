@@ -18,10 +18,6 @@ services:
 
     volumes:
       - ${DATA_PATH:-./data}/overleaf:/var/lib/overleaf
-      # TEXMFHOME. Packages installed with `tlmgr --usermode install` land here
-      # instead of inside the image, so they survive an image update. See the
-      # README -- without this, every upgrade silently drops them.
-      - ${DATA_PATH:-./data}/texmf:/root/texmf
 
     environment:
       OVERLEAF_APP_NAME: ${OVERLEAF_APP_NAME:-Overleaf}
@@ -39,6 +35,13 @@ services:
       # project invite -- is built from this. Defaults to http://localhost,
       # which is wrong the moment you use a port or a domain.
       OVERLEAF_SITE_URL: ${OVERLEAF_SITE_URL:-http://localhost:8020}
+
+      # Where `tlmgr --usermode install` puts packages. Overridden to a path on
+      # the persisted volume so they survive an image update -- and so that root
+      # (which runs tlmgr) and www-data (which runs the compiles) agree on one
+      # location. Left at the default they disagree, and packages install to a
+      # directory the compiler never searches. See the README.
+      TEXMFHOME: /var/lib/overleaf/texmf
 
       ENABLED_LINKED_FILE_TYPES: "project_file,project_output_file"
       ENABLE_CONVERSIONS: "true"
@@ -71,8 +74,16 @@ services:
     healthcheck:
       test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
       interval: 10s
-      timeout: 10s
+      timeout: 20s
       retries: 5
+      # Without this, failures during startup count against `retries`
+      # immediately: five slow checks (~50s) mark Mongo unhealthy, and the app's
+      # `condition: service_healthy` then refuses to start. Mongo recovers a
+      # moment later, so by morning nothing looks wrong. `mongosh` is a Node
+      # process and is slow to answer on a loaded box -- e.g. right after a
+      # backup job. During start_period a failure is not counted, and a success
+      # promotes to healthy straight away.
+      start_period: 120s
 
   redis:
     image: redis:6.2
