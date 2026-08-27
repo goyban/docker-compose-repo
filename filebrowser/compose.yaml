@@ -1,0 +1,32 @@
+services:
+  filebrowser:
+    # FileBrowser Quantum -- the maintained fork. The original
+    # filebrowser/filebrowser was wound down on 2026-09-01 with ~30 unfixed
+    # security advisories; see the README before reaching for it again.
+    image: ghcr.io/gtsteffaniak/filebrowser:1.5.3-stable
+    container_name: filebrowser
+    restart: unless-stopped
+
+    # The image already runs as its own non-root `filebrowser` user, uid/gid
+    # 1000. It reads no PUID/PGID, so ownership is set the Docker way. Change
+    # this if the files it must read are owned by someone else.
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+      # Without these it looks for config.yaml *inside* the data directory and
+      # exits FATAL when it is missing. Splitting them keeps the committed
+      # config separate from the database it generates.
+      - FILEBROWSER_CONFIG=/config/config.yaml
+      - FILEBROWSER_DATABASE=/data/database.db
+
+    volumes:
+      - ./init/config.yaml:/config/config.yaml:ro
+      # SQLite database: users, shares, the search index. Back this up.
+      - ${DATA_PATH:-./data}:/data
+      # The directory you actually want to browse. Add `:ro` to make this a
+      # viewer rather than a file manager.
+      - "${BROWSE_PATH:?set BROWSE_PATH to the directory you want to browse}:/srv"
+
+    ports:
+      - "${PORT:-3672}:80"

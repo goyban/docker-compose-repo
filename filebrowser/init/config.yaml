@@ -1,0 +1,26 @@
+# FileBrowser Quantum configuration.
+#
+# Mounted read-only at /config/config.yaml; the container is pointed at it with
+# FILEBROWSER_CONFIG. `./filebrowser -c` inside the image prints the full
+# annotated default if you want to see every available option.
+
+server:
+  port: 80
+  baseURL: "/"
+  logging:
+    - levels: "info|warning|error"
+  # What gets browsed. The compose file bind-mounts your directory here.
+  sources:
+    - path: "/srv"
+
+auth:
+  methods:
+    password:
+      enabled: true
+      # Leave at 5. The first run creates a default admin whose password is
+      # shorter than 8 characters, and raising this makes that creation fail
+      # with a FATAL before the server ever starts. Raise it only after you
+      # have set a real password -- see the README.
+      minLength: 5
+      # No self-registration. Users are created by an admin.
+      signup: false

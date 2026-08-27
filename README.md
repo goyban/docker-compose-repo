@@ -39,6 +39,7 @@ handled separately — see [Exposing services](#exposing-services).
 | [audiobookshelf](audiobookshelf/) | 13378 | Audiobooks and podcasts, with per-user progress sync |
 | [cloudflare-tunnel](cloudflare-tunnel/) | — | Outbound connector. Exposes other services without opening a port |
 | [codeserver](codeserver/) | 8443 | VS Code in a browser. Effectively a remote shell — read its README before exposing |
+| [filebrowser](filebrowser/) | 3672 | Web file manager for one directory tree (FileBrowser Quantum fork) |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
 | [openwebui](openwebui/) | 3033 | LLM chat UI. One `OWUI_TAG` switches between CPU, CUDA and bundled-Ollama |
 | [overleaf](overleaf/) | 8020 | LaTeX editor. Four containers: app, Mongo (replica set), Redis, init |
