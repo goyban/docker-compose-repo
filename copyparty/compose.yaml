@@ -1,0 +1,48 @@
+services:
+  copyparty:
+    # Variants differ by what's bundled: `min` is the bare server, `ac` adds
+    # ffmpeg for thumbnails and media tags, `iv`/`dj` add more. `ac` is the
+    # sensible default and what the config's e2ts flag needs.
+    image: copyparty/ac:1.20.21
+    container_name: copyparty
+    restart: unless-stopped
+
+    # Runs as root unless told otherwise. It reads no PUID/PGID.
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    # The thumbnailer gets ~10s to finish after the stop signal.
+    stop_grace_period: 15s
+
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+      # Keeps log lines from being buffered.
+      - PYTHONUNBUFFERED=1
+      # Without this, copyparty cannot write its config dir (/cfg is read-only)
+      # and falls back to /tmp -- which silently regenerates the filekeys behind
+      # every share link on each restart.
+      - XDG_CONFIG_HOME=/data
+      # Replace NOPE with 2 to enable mimalloc: faster, roughly double the RAM.
+      - LD_PRELOAD=/usr/lib/libmimalloc-secure.so.NOPE
+
+    # Accounts live here, not in the committed config file. The name must match
+    # the one in init/copyparty.conf's `accs:` block.
+    command: ["-a", "${CP_USER:-admin}:${CP_PASSWORD:?set a password - the config grants access to this account only}"]
+
+    volumes:
+      - ./init:/cfg:ro
+      # Index, thumbnails and copyparty's own config dir. Back this up.
+      - ${DATA_PATH:-./data}:/data
+      # What you're sharing. Add `:ro` for a download-only server.
+      - "${SHARE_PATH:?set SHARE_PATH to the directory you want to share}:/w"
+
+    ports:
+      - "${PORT:-3923}:3923"
+
+    healthcheck:
+      # The "/._" suffix matches copyparty's default log filter, so the probe
+      # doesn't fill the log.
+      test: ["CMD-SHELL", "wget --spider -q 127.0.0.1:3923/?reset=/._"]
+      interval: 1m
+      timeout: 2s
+      retries: 5
+      start_period: 15s
