@@ -100,8 +100,40 @@ Publishes plain HTTP; nothing here is proxy-aware.
 - [Caddy reverse proxy](../docs/reverse-proxy.md) — what I do.
 - [Cloudflare Tunnel](../docs/cloudflare-tunnel.md) — **not for this one.**
   Streaming video through a tunnel breaks Cloudflare's terms and performs badly.
-- [Authentik SSO](../docs/authentik-sso.md) — works for the web UI, but native
-  clients can't handle a forward-auth login page.
+- [Authentik SSO](../docs/authentik-sso.md) — forward auth works for the web UI
+  but breaks every native client, so use a plugin instead. See below.
+
+## Single sign-on with Authentik
+
+Needs a reverse proxy in front, same as anything else doing OIDC — see
+[Caddy](../docs/reverse-proxy.md).
+
+**Authentik's own guide takes a different route than I did.**
+[Their Jellyfin page](https://integrations.goauthentik.io/media/jellyfin/)
+documents the **LDAP** approach: an LDAP provider plus an outpost, talking to
+Jellyfin's *LDAP Authentication* plugin. Their reasoning is that Jellyfin has no
+native external authentication. That works, but it means running an outpost and
+managing a bind user.
+
+I used the **SSO-Auth** plugin instead, which does OIDC against Authentik
+directly — no outpost, no LDAP bind. If you follow their page and wonder why
+none of the screens match, that's why.
+
+### The setting that cost me the time
+
+**Scheme Override → `https`.**
+
+If the plugin redirects you to an *insecure* URL — you land on `http://` mid-login
+and it fails — this is the fix. Behind a TLS-terminating proxy, Jellyfin sees a
+plain HTTP request and builds the callback from that, so the redirect goes out as
+`http://` even though everything the browser touches is HTTPS.
+
+Tracked upstream at
+[goauthentik/authentik#15936](https://github.com/goauthentik/authentik/issues/15936).
+
+Note this is the same class of problem as `JELLYFIN_PublishedServerUrl` in
+`compose.yaml`: Jellyfin builds absolute URLs from what it observes, and behind a
+proxy what it observes is wrong until you tell it otherwise.
 
 ## Links
 
