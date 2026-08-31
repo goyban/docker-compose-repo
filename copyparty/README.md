@@ -69,6 +69,15 @@ what the config's `e2ts` needs.
   but a leaked link is public access to that file.
 - **`e2dsa` indexes on first start.** For a large share, expect the first boot
   to churn; uploads are blocked while it runs and it says so in the log.
+- **It is CPU-hungry, and on a small box you will feel it.** On my Intel N100
+  this is the service that shows up in `top`, not the media server. I still run
+  it and still want it, but I stop the container when I'm not actively moving
+  files rather than leave it idling — on a four-core low-TDP chip that headroom
+  is worth more than instant availability. The expensive parts are the ones
+  this config asks for: `e2dsa` walking the share and the media tag/thumbnail
+  work that the `ac` image exists to provide. Nothing is misconfigured — it's
+  what the feature set costs. If you want it always-on there, drop to the `min`
+  image and turn off `e2ts`, and accept losing thumbnails.
 - **Back up `DATA_PATH`.** It holds the index and the filekeys that make share
   links stable.
 - **Version-check is opt-in.** Uncomment `vc-url` and `vc-exit` in the config
