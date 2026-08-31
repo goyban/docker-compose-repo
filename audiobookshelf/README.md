@@ -81,8 +81,79 @@ Publishes a plain HTTP port; nothing here is proxy-aware.
 - [Cloudflare Tunnel](../cloudflare-tunnel/) — audio is far lighter than video,
   but it's still media served through the proxy; read
   [the limits](../docs/cloudflare-tunnel.md) before pointing a tunnel at it.
-- [Single sign-on with Authentik](../docs/authentik-sso.md) — as with Jellyfin,
-  the mobile apps won't understand a forward-auth login page.
+- [Single sign-on with Authentik](../docs/authentik-sso.md) — Audiobookshelf
+  speaks OIDC natively, so use that rather than forward auth: the mobile apps
+  can't render a forward-auth login page. See the section below.
+
+## Single sign-on with Authentik
+
+Worth doing here, because Audiobookshelf is one of the apps that speaks OIDC
+itself — real accounts, real logout, and the mobile apps keep working. Forward
+auth would break them.
+
+**It needs a reverse proxy first.** The whole flow is built from absolute HTTPS
+URLs, so there has to be a real hostname in front:
+
+```caddy
+audiobookshelf.example.com {
+    reverse_proxy <ip>:13378
+}
+```
+
+Then follow
+[Authentik's Audiobookshelf guide](https://integrations.goauthentik.io/media/audiobookshelf/):
+create an OAuth2/OpenID Connect provider, note the application **slug**, and
+put the issuer URL, client ID and client secret into
+**Settings → Authentication** on the Audiobookshelf side. **Auto-populate**
+fills in the OIDC endpoints for you.
+
+### The redirect URIs are where this goes wrong
+
+[Step 2 of the guide](https://integrations.goauthentik.io/media/audiobookshelf/#create-an-application-and-provider)
+gives these three:
+
+```
+Strict  Authorization  https://audiobookshelf.company/auth/openid/callback
+Strict  Authorization  https://audiobookshelf.company/auth/openid/mobile-redirect
+Strict  Post Logout    https://audiobookshelf.company/login
+```
+
+Those did not work for me. Mine needed an extra `/audiobookshelf` path segment:
+
+```
+https://audiobookshelf.company.com/audiobookshelf/auth/openid/callback
+https://audiobookshelf.company.com/audiobookshelf/auth/openid/mobile-redirect
+```
+
+**Don't guess at this — Audiobookshelf tells you the answer.** Its
+**Settings → Authentication** page has a subfolder section that prints the exact
+URIs to authorize:
+
+> Authorize these URLs in your OAuth provider to allow redirection back to the
+> web app after login:
+>
+> `https://<your.server.com>/audiobookshelf/auth/openid/callback`
+> `https://<your.server.com>/audiobookshelf/auth/openid/mobile-redirect`
+
+Copy those into Authentik verbatim. A mismatch surfaces as a generic error that
+doesn't name the URI, which is why this is worth ten seconds of checking rather
+than an evening of guessing.
+
+### Mobile apps need their own redirect URIs
+
+The phone clients don't come back over HTTPS — they hand off to a custom URL
+scheme. These go in **Allowed Mobile Redirect URIs**:
+
+```
+audiobookshelf://oauth
+https://authentik.company.com/auth/openid/mobile-redirect
+
+plappa://oauth        # Plappa, iOS
+prologue://oauth      # Prologue, iOS
+```
+
+One per app: a client you haven't listed fails at the last step of a login that
+otherwise looked fine. Add the scheme for each third-party app you actually use.
 
 ## Links
 
