@@ -221,9 +221,18 @@ behind a proxy.
 - [Reverse proxy with Caddy](../docs/reverse-proxy.md) — the default choice.
 - [Cloudflare Tunnel](../cloudflare-tunnel/) — fine for this one. It's a text
   app; nothing here bumps the ~100 MB body cap unless you attach large files.
-- [Single sign-on with Authentik](../docs/authentik-sso.md) — **think first.**
-  This is your bank data, and Firefly's own login is the only thing in front of
-  it today. Keep a working local admin until any SSO flow is proven.
+- [Single sign-on with Authentik](../docs/authentik-sso.md#forward-auth--putting-an-app-with-no-sso-behind-authentik)
+  — **what I do.** Firefly has no OIDC support, so it sits behind Authentik
+  forward auth: Caddy checks with Authentik before the request reaches the
+  container. That means two logins, Authentik then Firefly, which for bank data
+  is a trade worth making — the app's own login form is never exposed to the
+  internet. The exact Caddyfile is in that doc.
+
+  Two things to keep in mind here specifically. Firefly's **API is behind the
+  same wall**, so external API clients stop working (the bundled importer is
+  unaffected — it talks to `app:8080` inside the compose network, never through
+  the proxy). And keep a working local admin until the flow is proven; locking
+  yourself out of your own ledger is an unpleasant afternoon.
 
 ## Links
 
