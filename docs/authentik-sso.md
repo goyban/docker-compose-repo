@@ -1,6 +1,8 @@
 # Single sign-on with Authentik
 
-TODO: fill in as you go. Outline below so the shape is decided in advance.
+One login for everything self-hosted here, and one place to revoke it. The
+services themselves stay unaware — nothing in any `compose.yaml` in this repo
+mentions Authentik.
 
 ## Two ways to protect a service
 
@@ -16,13 +18,51 @@ fallback.
 
 ## Native OIDC — the shape
 
-TODO: provider + application setup in Authentik, then the four values every
-app asks for:
+Use this wherever the app supports it. You get real accounts, real logout, and
+clients that aren't browsers keep working.
 
-- Issuer / discovery URL
-- Client ID
-- Client secret → `.env`, never committed
-- Redirect URI
+### In Authentik
+
+**Applications → Create**, provider type **OAuth2/OpenID Connect**. Three things
+to note as you go:
+
+- the application **slug** — it appears in half the URLs below
+- the **client ID** and **client secret**
+- pick a **signing key**, or the app can't validate the token it gets back
+
+Then add the **redirect URIs**, which is where this usually goes wrong — see the
+gotchas.
+
+### The four values every app asks for
+
+| Value | Where it comes from |
+|-------|--------------------|
+| Issuer / discovery URL | `https://authentik.example.com/application/o/<slug>/` |
+| Client ID | Authentik, on the provider |
+| Client secret | Authentik → the service's `.env`, never committed |
+| Redirect URI | The app tells you — don't guess |
+
+Most apps take the issuer URL and discover the rest themselves; Audiobookshelf
+calls this **Auto-populate**. When one wants the endpoints spelled out
+individually:
+
+| Endpoint | Path |
+|----------|------|
+| OpenID configuration | `/application/o/<slug>/.well-known/openid-configuration` |
+| Authorization | `/application/o/authorize/` |
+| Token | `/application/o/token/` |
+| User info | `/application/o/userinfo/` |
+| End session | `/application/o/<slug>/end-session/` |
+| JWKS | `/application/o/<slug>/jwks/` |
+
+Note which paths carry the slug and which don't: authorize, token and userinfo
+are shared across every application, while discovery, JWKS and logout are
+per-application. Putting the slug where it doesn't belong gives a 404 that looks
+like the provider is broken.
+
+Worked examples in this repo:
+[audiobookshelf](../audiobookshelf/README.md#single-sign-on-with-authentik) and
+[jellyfin](../jellyfin/README.md#single-sign-on-with-authentik).
 
 ## Forward auth — putting an app with no SSO behind Authentik
 
@@ -124,16 +164,57 @@ Prefer native OIDC wherever the app supports it. Reach for this when it doesn't.
 
 ## Groups and roles
 
-TODO: how you map Authentik groups to per-app roles, and the admin/user
-split.
+The mechanism is the same everywhere: Authentik puts your group membership in
+the token, and the app decides what that means.
+
+**You usually don't need a custom mapping.** The standard `profile` scope
+already includes group membership, so most apps see your groups with nothing
+configured. Reach for a custom **scope mapping** (Customization → Property
+Mappings) only when an app wants the claim under a different name or in a
+different shape.
+
+**Each app consumes it differently**, and that's the part to check per service —
+Audiobookshelf has group and permission claim fields under its OpenID settings;
+the Jellyfin SSO-Auth plugin has its own role and admin filters. There is no
+single setting that makes "the admins group" mean administrator everywhere.
+
+**The split worth setting up:** one group for ordinary access, one for admin,
+and grant the app's admin role only to the second. The reason is the failure
+mode below — if everyone who can log in is an admin, an SSO misconfiguration
+isn't just an outage, it's an escalation.
+
+TODO: the actual group names and per-app role mapping used here, once the same
+shape has survived a few services.
 
 ## Gotchas
 
-TODO: collect these as you hit them. Known ones worth writing down:
-
-- Locking yourself out of an app whose only admin is now behind SSO — keep a
-  local fallback admin until the flow is proven.
-- Redirect URI mismatches, which usually surface as a generic error.
+- **Keep a local fallback admin until the flow is proven.** If the only account
+  that can administer an app is behind SSO and SSO breaks, you have locked
+  yourself out of the thing you need in order to fix it. Prove the login works,
+  in a private window, *before* removing the local account.
+- **Redirect URI mismatches surface as a generic error** that never names the
+  URI. Read the exact URIs off the application's own settings page rather than
+  copying them from a guide — Audiobookshelf prints them, and
+  [its README](../audiobookshelf/README.md#the-redirect-uris-are-where-this-goes-wrong)
+  documents a case where the published guide was wrong for that install.
+- **Behind TLS, apps build `http://` redirect URLs.** The proxy terminates TLS,
+  the app sees a plain HTTP request, and the callback it generates is insecure —
+  so the login fails halfway through. Every app has its own name for the fix;
+  Jellyfin's SSO-Auth plugin calls it
+  [Scheme Override](../jellyfin/README.md#the-setting-that-cost-me-the-time).
+  Firefly's `TRUSTED_PROXIES=**` is the same class of setting.
+- **`email_verified` is `False` by default.** Some apps refuse to authenticate a
+  user whose email isn't marked verified, and the resulting error rarely says
+  so. Fix it in the scope mapping.
+- **Forward auth breaks everything that isn't a browser.** Mobile apps and API
+  clients can't complete an interactive login. Check what talks to a service
+  before putting it behind forward auth — this is the single biggest reason to
+  prefer native OIDC.
+- **Adding the application to an outpost is a separate step** from creating the
+  provider and the application, and forgetting it fails in a way that looks like
+  a Caddy problem.
+- **The client secret belongs in the service's `.env`**, which is git-ignored.
+  Never in `compose.yaml`, which is committed.
 
 ## Related
 
