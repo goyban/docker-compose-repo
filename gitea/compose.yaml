@@ -1,0 +1,40 @@
+networks:
+  gitea:
+    external: false
+
+services:
+  server:
+    # Pinned. Gitea runs schema migrations between releases, so an unattended
+    # pull picking up a new minor is not something to meet by surprise.
+    image: docker.gitea.com/gitea:1.27.3
+    container_name: gitea
+    restart: unless-stopped
+    networks:
+      - gitea
+
+    environment:
+      # Gitea's `git` user is made to match the owner of the bind-mounted data
+      # directory. Defaults so a fresh clone runs with no .env at all -- bare
+      # ${PUID} would interpolate to an empty string and start anyway.
+      - USER_UID=${PUID:-1000}
+      - USER_GID=${PGID:-1000}
+      # Gitea knows it listens on 22 inside the container and has no idea it is
+      # published on 222, so the SSH clone URLs it hands out send clients to the
+      # host's own sshd. Uncomment to match the published port below.
+      #- GITEA__server__SSH_PORT=${SSH_PORT:-222}
+      # Set this once you're behind a proxy, or every clone URL, webhook and
+      # OAuth redirect points at the wrong host.
+      #- GITEA__server__ROOT_URL=https://git.example.com/
+
+    volumes:
+      # Every repository, the SQLite database and conf/app.ini. Back this up --
+      # nothing in it regenerates.
+      - ${DATA_PATH:-./data}:/data
+      # Timezone comes from the host rather than a TZ variable.
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+    ports:
+      - "${PORT:-3000}:3000"
+      # 22 on the host belongs to the host's own sshd, hence 222.
+      - "${SSH_PORT:-222}:22"
