@@ -114,6 +114,13 @@ firefly.domain.com {
 Only the last line changes per service: swap the address and port, and the
 hostname at the top. Everything between is identical for every app.
 
+`10.10.0.2` there is a **private address, not a public one** — in this setup a
+WireGuard host, so Caddy reaches the app over the tunnel rather than across the
+internet. Whatever address your proxy uses to reach the service goes there: a
+LAN IP, a WireGuard or Tailscale peer, or a container name if Caddy runs in the
+same Compose project. The only requirement is that Caddy can reach it and the
+outside world can't.
+
 ### Why each piece is there
 
 **`route { }` is not optional.** Caddy normally executes directives in its own
