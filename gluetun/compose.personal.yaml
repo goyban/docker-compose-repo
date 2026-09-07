@@ -1,0 +1,61 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      
+      # Enable SOCKS5 proxy
+      - SOCKSPROXY=on
+      - SOCKSPROXY_PORT=1080
+
+      # Optional HTTP proxy
+      - HTTPPROXY=on
+      - HTTPPROXY_PORT=8888
+      
+    ports:
+      - "9880:9880/tcp" # Qbittorrent Web UI
+      - "8880:8880/tcp" # PyLoad Web-UI
+      - "9980:1080/tcp" # Socks Proxy
+      - "9998:8888/tcp" # HTTP Proxy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./wg0.conf:/gluetun/wireguard/wg0.conf
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=9880
+      - TORRENTING_PORT=6881
+    volumes:
+      - ./config:/config
+      - '${TEMPDISK}/downloads/torrents:/downloads'
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+    
+  pyload-ng:
+    image: lscr.io/linuxserver/pyload-ng:latest
+    container_name: pyload-ng
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./pyloadconfig:/config
+      - ${TEMPDISK}/downloads/pyload:/downloads
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped

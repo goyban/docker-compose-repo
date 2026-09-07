@@ -7,6 +7,10 @@
 # ─── …except the files that define a stack ──────────────────────────
 !*/compose.yaml
 !*/docker-compose.yaml
+# A service's alternative compose file, published as documentation. Narrow on
+# purpose: `!*/compose.*.yaml` would also un-ignore compose.override.yaml,
+# which is exactly where people keep local secrets.
+!*/compose.personal.yaml
 !*/.env.example
 !*/README.md
 
@@ -26,3 +30,10 @@
 *.crt
 secrets/
 TODO
+
+# VPN configs carry private keys. Named explicitly because the `!*/init/**`
+# rule above would otherwise happily commit one dropped in a service's
+# init/ directory -- which is exactly where this repo's own conventions
+# tell you to put runtime config fragments.
+wg*.conf
+*.ovpn

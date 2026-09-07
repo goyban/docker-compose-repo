@@ -1,0 +1,95 @@
+# The maintained version of this stack -- this is what `docker compose up`
+# uses. See compose.personal.yaml for the older variant still running on
+# my own box, and the README for what differs between them.
+
+services:
+  gluetun:
+    # Pinned. This container holds the tunnel; an unattended pull breaking it
+    # means the download clients lose all connectivity (by design).
+    image: qmcgaw/gluetun:v3.41.3
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+
+      # SOCKS5 proxy. The names matter: SOCKSPROXY / SOCKSPROXY_PORT are NOT
+      # gluetun variables -- it ignores them silently and the proxy never
+      # starts. Verified against gluetun's own settings summary.
+      - SOCKS5_ENABLED=on
+      - SOCKS5_LISTENING_ADDRESS=:1080
+
+      # HTTP proxy. HTTPPROXY_PORT still works but logs a deprecation warning;
+      # LISTENING_ADDRESS is the current name.
+      - HTTPPROXY=on
+      - HTTPPROXY_LISTENING_ADDRESS=:8888
+
+      # Proxy authentication. Empty means NO authentication -- anyone who can
+      # reach the published ports can use the VPN. Set both vars in .env to
+      # turn it on; leaving them unset keeps the current behaviour.
+      - HTTPPROXY_USER=${PROXY_USER:-}
+      - HTTPPROXY_PASSWORD=${PROXY_PASSWORD:-}
+      - SOCKS5_USER=${PROXY_USER:-}
+      - SOCKS5_PASSWORD=${PROXY_PASSWORD:-}
+
+    ports:
+      - "${QBT_PORT:-9880}:9880/tcp"      # qBittorrent Web UI
+      # pyload-ng listens on 8000 inside the container and the port is not
+      # settable by environment variable -- only in pyload's own config.
+      - "${PYLOAD_PORT:-8880}:8000/tcp"   # pyLoad Web UI
+      - "${SOCKS_PORT:-9980}:1080/tcp"    # SOCKS5 proxy
+      - "${HTTPPROXY_PORT:-9998}:8888/tcp" # HTTP proxy
+      # Incoming BitTorrent peers. Needs a forwarded port from TorGuard, and
+      # the number here must match TORRENTING_PORT below.
+      #- "6881:6881/tcp"
+      #- "6881:6881/udp"
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # Bind mount of a FILE. It must exist before the first `up` or Docker
+      # creates a directory here and gluetun finds no config. Git-ignored.
+      - ./wg0.conf:/gluetun/wireguard/wg0.conf:ro
+
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - WEBUI_PORT=9880
+      - TORRENTING_PORT=6881
+    volumes:
+      - ${CONFIG_PATH:-./config}:/config
+      - "${TEMPDISK:?set TEMPDISK in .env to the disk your downloads live on}/downloads/torrents:/downloads"
+    # No network of its own: everything goes through the tunnel, and there is
+    # no route out if the tunnel drops. This is also why it cannot declare
+    # its own `ports:` -- they live on gluetun above.
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        # gluetun ships a healthcheck; wait for the tunnel rather than racing it.
+        condition: service_healthy
+    restart: unless-stopped
+
+  pyload-ng:
+    image: lscr.io/linuxserver/pyload-ng:latest
+    container_name: pyload-ng
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      - ${PYLOAD_CONFIG_PATH:-./pyloadconfig}:/config
+      - ${TEMPDISK}/downloads/pyload:/downloads
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    restart: unless-stopped
