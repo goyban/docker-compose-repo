@@ -42,6 +42,9 @@ handled separately — see [Exposing services](#exposing-services).
 | [copyparty](copyparty/) | 3923 | File server built for big/resumable transfers, WebDAV, media index |
 | [filebrowser](filebrowser/) | 3672 | Web file manager for one directory tree (FileBrowser Quantum fork) |
 | [firefly](firefly/) | 8564 | Personal finance / double-entry ledger. Also 8566 for the data importer |
+| [gitea](gitea/) | 3000 | Self-hosted Git with issues and PRs. Also 222 for SSH clone |
+| [gluetun](gluetun/) | 9880 | VPN kill switch with qBittorrent + pyload-ng inside it, plus HTTP/SOCKS proxies |
+| [heimdall](heimdall/) | 4080 | Dashboard / start page for the other services |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
 | [openwebui](openwebui/) | 3033 | LLM chat UI. One `OWUI_TAG` switches between CPU, CUDA and bundled-Ollama |
 | [overleaf](overleaf/) | 8020 | LaTeX editor. Four containers: app, Mongo (replica set), Redis, init |
