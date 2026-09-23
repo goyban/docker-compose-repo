@@ -46,6 +46,8 @@ handled separately — see [Exposing services](#exposing-services).
 | [gluetun](gluetun/) | 9880 | VPN kill switch with qBittorrent + pyload-ng inside it, plus HTTP/SOCKS proxies |
 | [heimdall](heimdall/) | 4080 | Dashboard / start page for the other services |
 | [httpserver](httpserver/) | 8083 | Bare nginx file share. Plain HTTP on purpose — works with very old clients |
+| [immich](immich/) | 2283 | Photo and video library with local ML search. Four containers, Postgres + VectorChord |
+| [librespeed](librespeed/) | 3011 | Self-hosted speed test. Measures the path to your box, not your ISP |
 | [jellyfin](jellyfin/) | 8096 | Media streaming. Also 7359/udp for auto-discovery |
 | [openwebui](openwebui/) | 3033 | LLM chat UI. One `OWUI_TAG` switches between CPU, CUDA and bundled-Ollama |
 | [overleaf](overleaf/) | 8020 | LaTeX editor. Four containers: app, Mongo (replica set), Redis, init |
