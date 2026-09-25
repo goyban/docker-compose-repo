@@ -1,0 +1,24 @@
+name: myspeed
+
+services:
+    myspeed:
+        # Note what `latest` means here: upstream's last tagged release is
+        # v1.0.9 from May 2024, and `latest` still points at that same image.
+        # Active development ships as `development` (rebuilt Aug 2026), so
+        # set MYSPEED_TAG=development in .env if you want the current build.
+        image: germannewsmaker/myspeed:${MYSPEED_TAG:-latest}
+        container_name: myspeed
+        restart: unless-stopped
+
+        ports:
+            - "${PORT:-5216}:5216"
+
+        volumes:
+            # History database and every setting MySpeed has. This directory
+            # is the entire backup -- nothing in it regenerates.
+            - ${DATA_PATH:-./data}:/myspeed/data
+            # MySpeed schedules tests with cron expressions and reads no TZ
+            # variable, so container time decides when they run -- UTC by
+            # default. Uncomment to follow the host clock instead.
+            #- /etc/localtime:/etc/localtime:ro
+            #- /etc/timezone:/etc/timezone:ro
